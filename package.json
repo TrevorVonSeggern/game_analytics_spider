@@ -1,0 +1,32 @@
+{
+  "name": "dota-elo",
+  "version": "1.0.0",
+  "description": "Spiders dota stuff and then we can make good bets",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://bitbucket.org/tvonseggern/node-dota-elo.git"
+  },
+  "keywords": [
+    "dota",
+    "elo",
+    "spider"
+  ],
+  "author": "Trevor Von Seggern",
+  "license": "UNLICENSED",
+  "homepage": "https://bitbucket.org/tvonseggern/node-dota-elo#readme",
+  "dependencies": {
+    "cheerio": "^0.19.0",
+    "dateformat": "^1.0.12",
+    "guid": "0.0.12",
+    "kerberos": "0.0.18",
+    "linq": "^3.0.5",
+    "mongodb": "^2.1.4",
+    "mysql": "^2.10.2",
+    "request": "^2.67.0",
+    "string-format": "^0.5.0"
+  }
+}
