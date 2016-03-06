@@ -1,79 +1,87 @@
 /**
  * Created by trevor on 1/13/16.
  */
-declare function require(name:string);
-declare var module;
 
 var mysql = require('mysql');
-var poolRequests = [];
+var poolRequests:any[] = [];
 var settings = require('../connection.json');
 
-class Connection {
-    connection: any;
-    pool: any;
+export class Connection {
+    connection:any;
+    pool:any;
 
-    format(query, inserts) {
+    static format(query:string, inserts:string):string {
         return mysql.format(query, inserts)
     }
-    query(query, queryCallback) {
+
+    query(query:string, queryCallback:(err:any, data:any[]) => any) {
         this.connection.query(query, queryCallback);
     }
-    createConnection () {
+
+    createConnection() {
         this.connection = mysql.createConnection(settings);
         this.connection.connect();
     }
-    addQueryToPool (query, callback) {
+
+    static addQueryToPool(query:any, callback:(param:any) => any) {
         poolRequests.push({query: query, callback: callback});
     }
-    executePool () {
-        if(poolRequests && poolRequests.length  && poolRequests.length <= 0)
+
+    executePool(savedAllCallback:() => any) {
+        if (poolRequests && poolRequests.length && poolRequests.length <= 0)
             return; // don't bother if there aren't any queries
 
         this.pool = mysql.createPool(settings); // create pool.
 
+        var requestsLeft:number = poolRequests.length;
         // only needs one connection because the data amount doesn't justify it.
-        if(poolRequests.length < 100) {
+        if (poolRequests.length < 10) {
             this.createConnection();
-            while(poolRequests.length > 0) {
+            while (poolRequests.length > 0) {
                 var sqlItem = poolRequests.shift();
-                this.query(sqlItem.query, sqlItem.callback);
+                this.query(sqlItem.query, function() {
+                    requestsLeft--;
+                    sqlItem.callback();
+                    if(requestsLeft == 0) {
+                        savedAllCallback();
+                    }
+                });
             }
             this.killConnection();
         }
         else { // Big data
-
-            //create multiple connections
-            var sqlPerConnection = Math.ceil(poolRequests.length / settings.connectionLimit);
-
-            for(var c = 0; c < settings.connectionLimit; c++) {
-                if(poolRequests.length <= 0)
-                    break;
-
-                this.pool.getConnection(function(err, connection) {
-                    if(err) {
-                        connection && connection.release();
-                        console.log(err);
+            for (var c = 0; c < settings.connectionLimit; c++) {
+                this.pool.getConnection(function (error:any, mysqlCon:any) {
+                    if (error) {
+                        mysqlCon && mysqlCon.release();
+                        console.log(error);
                         return;
                     }
-                    console.log('connected as id ' + connection.threadId);
-
-                    if(poolRequests.length <= 0)
-                        return;
-
-                    for(var i = 0; i < sqlPerConnection; i++) {
-                        var queryItem = poolRequests.shift();
-                        if(queryItem) {
-                            connection.query(queryItem.query, queryItem.callback);
+                    function executeQueryRequestOnConnection(mysqlCon:any, request:any) {
+                        // ran out of requests
+                        if (request == undefined || request == null || request == {}) {
+                            return;
                         }
+
+                        // process a request
+                        mysqlCon.query(request.query, function () {
+                            request.callback();
+                            requestsLeft--;
+                            if(requestsLeft == 0) {
+                                savedAllCallback();
+                            } else {
+                                executeQueryRequestOnConnection(mysqlCon, poolRequests.shift());
+                            }
+                        });
                     }
-                    connection.release();
+
+                    executeQueryRequestOnConnection(mysqlCon, poolRequests.shift());
                 });
             }
         }
     }
-    killConnection () {
+
+    killConnection() {
         this.connection.end();
     }
 }
-
-module.exports = Connection;

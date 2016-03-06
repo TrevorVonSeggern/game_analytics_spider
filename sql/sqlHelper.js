@@ -1,10 +1,13 @@
+/**
+ * Created by trevor on 1/13/16.
+ */
 var mysql = require('mysql');
 var poolRequests = [];
 var settings = require('../connection.json');
 var Connection = (function () {
     function Connection() {
     }
-    Connection.prototype.format = function (query, inserts) {
+    Connection.format = function (query, inserts) {
         return mysql.format(query, inserts);
     };
     Connection.prototype.query = function (query, queryCallback) {
@@ -14,42 +17,55 @@ var Connection = (function () {
         this.connection = mysql.createConnection(settings);
         this.connection.connect();
     };
-    Connection.prototype.addQueryToPool = function (query, callback) {
+    Connection.addQueryToPool = function (query, callback) {
         poolRequests.push({ query: query, callback: callback });
     };
-    Connection.prototype.executePool = function () {
+    Connection.prototype.executePool = function (savedAllCallback) {
         if (poolRequests && poolRequests.length && poolRequests.length <= 0)
-            return;
-        this.pool = mysql.createPool(settings);
-        if (poolRequests.length < 100) {
+            return; // don't bother if there aren't any queries
+        this.pool = mysql.createPool(settings); // create pool.
+        var requestsLeft = poolRequests.length;
+        // only needs one connection because the data amount doesn't justify it.
+        if (poolRequests.length < 10) {
             this.createConnection();
             while (poolRequests.length > 0) {
                 var sqlItem = poolRequests.shift();
-                this.query(sqlItem.query, sqlItem.callback);
+                this.query(sqlItem.query, function () {
+                    requestsLeft--;
+                    sqlItem.callback();
+                    if (requestsLeft == 0) {
+                        savedAllCallback();
+                    }
+                });
             }
             this.killConnection();
         }
         else {
-            var sqlPerConnection = Math.ceil(poolRequests.length / settings.connectionLimit);
             for (var c = 0; c < settings.connectionLimit; c++) {
-                if (poolRequests.length <= 0)
-                    break;
-                this.pool.getConnection(function (err, connection) {
-                    if (err) {
-                        connection && connection.release();
-                        console.log(err);
+                this.pool.getConnection(function (error, mysqlCon) {
+                    if (error) {
+                        mysqlCon && mysqlCon.release();
+                        console.log(error);
                         return;
                     }
-                    console.log('connected as id ' + connection.threadId);
-                    if (poolRequests.length <= 0)
-                        return;
-                    for (var i = 0; i < sqlPerConnection; i++) {
-                        var queryItem = poolRequests.shift();
-                        if (queryItem) {
-                            connection.query(queryItem.query, queryItem.callback);
+                    function executeQueryRequestOnConnection(mysqlCon, request) {
+                        // ran out of requests
+                        if (request == undefined || request == null || request == {}) {
+                            return;
                         }
+                        // process a request
+                        mysqlCon.query(request.query, function () {
+                            request.callback();
+                            requestsLeft--;
+                            if (requestsLeft == 0) {
+                                savedAllCallback();
+                            }
+                            else {
+                                executeQueryRequestOnConnection(mysqlCon, poolRequests.shift());
+                            }
+                        });
                     }
-                    connection.release();
+                    executeQueryRequestOnConnection(mysqlCon, poolRequests.shift());
                 });
             }
         }
@@ -59,5 +75,5 @@ var Connection = (function () {
     };
     return Connection;
 })();
-module.exports = Connection;
+exports.Connection = Connection;
 //# sourceMappingURL=sqlHelper.js.map

@@ -4,11 +4,17 @@
   "description": "Spiders dota stuff and then we can make good bets",
   "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "preinstall": "npm install autodts",
+    "postinstall": "autodts link",
+    "prepublish": "tsc && autodts generate"
   },
   "repository": {
     "type": "git",
     "url": "git+https://bitbucket.org/tvonseggern/node-dota-elo.git"
+  },
+  "typescript": {
+    "definition": "index.d.ts"
   },
   "keywords": [
     "dota",
@@ -19,14 +25,19 @@
   "license": "UNLICENSED",
   "homepage": "https://bitbucket.org/tvonseggern/node-dota-elo#readme",
   "dependencies": {
-    "cheerio": "^0.19.0",
+    "cheerio": "0.20.0",
     "dateformat": "^1.0.12",
     "guid": "0.0.12",
+    "hashtable": "^2.0.1",
     "kerberos": "0.0.18",
     "linq": "^3.0.5",
     "mongodb": "^2.1.4",
     "mysql": "^2.10.2",
+    "regex": "^0.1.1",
     "request": "^2.67.0",
     "string-format": "^0.5.0"
+  },
+  "devDependencies": {
+    "promise": "^7.1.1"
   }
 }

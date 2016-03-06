@@ -1,83 +1,82 @@
 /**
  * Created by trevor on 1/24/16.
  */
+import {Connection} from "../sql/sqlHelper";
+import {Game} from "./game";
+import {Cache} from "./cache";
 
-var sqlHelper = require('../sql/sqlHelper.js');
-var linq = require('linq');
 
-var sql:any = {
-    getAll: 'SELECT * FROM gameAnalytics.game;',
-    getOne: 'SELECT *  FROM gameAnalytics.event WHERE id = ? limit 10;'
-};
-var gameCache:any = [];
 
 export class Games {
     constructor() {
-
     }
-    static getOneGameCache(id) {
-        var result;
-        linq.from(gameCache).where(function(i) {
-            return i.id == id;
-        }).forEach(function(obj)
-        {
-            result = obj;
-        });
 
-        return result;
+    public static get sql(){
+        return {
+            getAllSql: 'SELECT * FROM gameAnalytics.game;',
+            getOneSql: 'SELECT *  FROM gameAnalytics.game WHERE id = ? limit 1;'
+        };
     }
-    static formatGetOne(inserts) {
-        var helper = new sqlHelper();
 
-        return helper.format(sql.getOne, inserts);
+    static formatGetOne(id:string) {
+        return Connection.format(Games.sql.getOneSql, id);
     }
-    static getAll (gameCallback) {
-        var con = new sqlHelper();
+
+    static getAll(gameCallback:(game:Game) => void, doneCallback:() => void) {
+        var con = new Connection();
 
         con.createConnection();
-        con.query(sql.getAll, function (err, data, info) {
-            for(var i = 0; i < data.length; i++) {
-                var req = require('./game.js');
-                var game = new req(data[i]);
-                var cache = Games.getOneGameCache(game.id);
-                if(!cache) {
-                    gameCache.push(game);
-                }
-
+        con.query(Games.sql.getAllSql, function (err:any, data:any[]) {
+            if(err) {
+                console.log(err);
+                return;
+            }
+            if(!data || data.length == 0) {
+                console.log("no data, can't get all games.");
+                return;
+            }
+            for (var i = 0; data && data.length && i < data.length; i++) {
+                var game:Game = new Game(data[i]);
+                // put everything into the cache
+                Cache.storeObject(game);
                 gameCallback(game);
             }
+            doneCallback && doneCallback();
         });
         con.killConnection();
     }
-    static getOneGameDatabase (id, oneCallback) {
-        var con = new sqlHelper();
+
+    static getOneGameDatabase(id:string, oneCallback:(game:Game) => void):void {
+        console.log(this.formatGetOne(id));
+        var con = new Connection();
         con.createConnection();
-        con.query(sql.getAll, function (err, data, info) {
-            for(var i = 0; i < data.length; i++) {
-                var game = new (require('./game.js'))(data[i]);
-
-                //game exists in cache
-                var cache = Games.getOneGameCache(game.id);
-                if(!cache) {
-                    gameCache.push(game);
-                }
-
-                oneCallback(data);
+        con.query(this.formatGetOne(id), function (err:string, data:any[]) {
+            if (err) {
+                console.log(err);
+                return;
             }
+            if(!data || data.length == 0) {
+                console.log("no data for query - [" + this.formatGetOne(id) + "]");
+                return;
+            }
+
+            var game = new Game(data[0]);
+            //game exists in cache
+            Cache.storeObject(game);
+            oneCallback(game);
         });
         con.killConnection();
     }
-    getOne (id, oneCallback) {
-        var game = Games.getOneGameCache(id);
-        if(game) {
-            if(oneCallback) {
-                oneCallback(game);
-            } else {
-                return game;
-            }
 
-        } else {
-            Games.getOneGameDatabase(id, oneCallback);
-        }
+    static getOne(id:string, oneCallback:(game:Game) => void):void {
+        if (id == undefined)
+            return undefined;
+        Cache.getObject(id, function (cachedGame:Game) {
+            if (!cachedGame) {
+                Games.getOneGameDatabase(id, oneCallback);
+            } else {
+                oneCallback && oneCallback(cachedGame);
+            }
+        });
     }
 }

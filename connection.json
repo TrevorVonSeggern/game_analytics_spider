@@ -1,9 +1,0 @@
-﻿{
-  "database": "Server",
-  "host": "localhost",
-  "password": "password",
-  "port": 1069,
-  "user": "trevor",
-  "waitForConnections": true,
-  "connectionLimit" : 7
-}
